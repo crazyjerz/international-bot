@@ -449,6 +449,7 @@ public class Bot extends ListenerAdapter{
         }catch(Exception ignored){
             ignored.printStackTrace();
         }
+        scheduler.schedule(Bot::automaticAppealer, 43200, TimeUnit.SECONDS);
     }
     public static void insufficientPermissionsStandardResponseSlashCommand(SlashCommandInteractionEvent event){
         logger.warn(String.format("User %s attempted to execute an illegal command in server %s.", event.getMember().getId(), event.getGuild().getId()));

@@ -51,11 +51,13 @@ public class Bot extends ListenerAdapter{
         try{
             File file = new File("data/logs/"+LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd'_'HHmmss"))+".log");
             file.createNewFile();
-            System.setOut(new PrintStream(file));
+            PrintStream ps = new PrintStream(new FileOutputStream(file));
+            System.setOut(ps);
+            //System.setErr(ps);
         }catch(Exception e){
             System.out.println("Logger unable to be created.");
         }
-        jda = JDABuilder.createLight(System.getenv("JAVABOT")).addEventListeners(new Bot()).setActivity(Activity.playing("Test")).enableIntents(GUILD_MEMBERS).setMemberCachePolicy(MemberCachePolicy.ALL).build(); // bot creation, token to be hidden
+        jda = JDABuilder.createLight(System.getenv("JAVABOT")).addEventListeners(new Bot()).setActivity(Activity.playing("Test")).enableIntents(GUILD_MEMBERS).setMemberCachePolicy(MemberCachePolicy.ALL).build(); // bot creation
         addCommands();
         scheduler.schedule(Bot::scheduledStatusChanger, 3, TimeUnit.SECONDS); // 3 seconds, so it only executes after the main logic is loaded
         scheduler.schedule(Bot::automaticAppealer, 10, TimeUnit.SECONDS);
@@ -88,10 +90,9 @@ public class Bot extends ListenerAdapter{
     public void onSlashCommandInteraction(SlashCommandInteractionEvent event){ // mega-func for all slash commands, to be split later
         event.deferReply(); // universal deferreply for all commands
         switch(event.getName()){
-            case "test": // to be deleted
-                event.reply("Test.").setEphemeral(false).queue();
-                break;
-            case "set": // for server admins to set channels for specific output
+            case "test" -> // to be deleted
+                    event.reply("Test.").setEphemeral(false).queue();
+            case "set" -> { // for server admins to set channels for specific output
                 if(!event.getMember().hasPermission(Permission.MANAGE_CHANNEL)){
                     insufficientPermissionsStandardResponseSlashCommand(event);
                     break;
@@ -102,10 +103,16 @@ public class Bot extends ListenerAdapter{
                     break;
                 }
                 try{
-                    String name = "data/channels/"+event.getGuild().getId()+".csv";
+                    String name = "data/channels/" + event.getGuild().getId() + ".csv";
                     Scanner scanner = new Scanner(Paths.get(name));
                     String[] options = scanner.nextLine().split(",");
-                    HashMap<Character, Integer> eventMap = new HashMap<>(){{put('m', 0); put('a', 1); put('s', 2); put('l', 3); put('r', 4);}};
+                    HashMap<Character, Integer> eventMap = new HashMap<>(){{
+                        put('m', 0);
+                        put('a', 1);
+                        put('s', 2);
+                        put('l', 3);
+                        put('r', 4);
+                    }};
                     try{
                         options[eventMap.get(type.charAt(0))] = event.getOption("channel").getAsString();
                     }catch(Exception e){
@@ -121,8 +128,8 @@ public class Bot extends ListenerAdapter{
                     logger.error(String.format("User %s encountered an unexpected ERROR while trying to change property %s in server %s", event.getMember().getId(), event.getOption("channel").getAsString(), event.getGuild().getName()));
                     event.reply("An unexpected error has occurred. Contact the developer.").setEphemeral(true).queue();
                 }
-                break;
-            case "kick":
+            }
+            case "kick" -> {
                 if(!event.getMember().hasPermission(Permission.KICK_MEMBERS)){
                     insufficientPermissionsStandardResponseSlashCommand(event);
                     break;
@@ -131,7 +138,7 @@ public class Bot extends ListenerAdapter{
                 String kickReason = (event.getOption("reason") != null ? event.getOption("reason").getAsString() : "");
                 try{
                     event.getGuild().kick(event.getOption("kicked").getAsUser()).reason(kickReason).queue();
-                    logger.info(String.format("User %s was kicked by %s in server %s. "+(kickReason.equals("") ? "No reason provided." : "Reason: %s"), kicked.getId(), event.getMember().getId(), event.getGuild().getName(), kickReason));
+                    logger.info(String.format("User %s was kicked by %s in server %s. " + (kickReason.equals("") ? "No reason provided." : "Reason: %s"), kicked.getId(), event.getMember().getId(), event.getGuild().getName(), kickReason));
                     event.reply("Kick successful.").setEphemeral(true).queue();
                 }catch(Exception e){
                     logger.error(String.format("User %s encountered an unexpected ERROR while trying to ban %s in server %s. ", event.getMember().getId(), kicked.getId(), event.getGuild().getName()));
@@ -139,10 +146,10 @@ public class Bot extends ListenerAdapter{
                     event.reply("An unexpected error has occurred.").setEphemeral(true).queue();
                 }
                 if(getSpecialSetting(2, event.getGuild()) == 1){
-                    privateMessage(kicked, "You have been kicked from "+event.getGuild().getName()+" by <@"+event.getMember().getId()+(kickReason.equals("") ? ">. No reason was provided" : (">. Reason:"+kickReason)));
+                    privateMessage(kicked, "You have been kicked from " + event.getGuild().getName() + " by <@" + event.getMember().getId() + (kickReason.equals("") ? ">. No reason was provided" : (">. Reason:" + kickReason)));
                 }
-                break;
-            case "ban":
+            }
+            case "ban" -> {
                 if(!event.getMember().hasPermission(Permission.BAN_MEMBERS)){
                     insufficientPermissionsStandardResponseSlashCommand(event);
                     break;
@@ -156,19 +163,19 @@ public class Bot extends ListenerAdapter{
                 }
                 String reason = (event.getOption("reason") != null ? event.getOption("reason").getAsString() : "");
                 event.deferReply();
-                String loggedInfo = user.getId()+","+reason+","+(System.currentTimeMillis()/1000);
+                String loggedInfo = user.getId() + "," + reason + "," + (System.currentTimeMillis() / 1000);
                 try{
-                    PrintWriter writer = new PrintWriter(new FileWriter(Paths.get("data/banList/"+event.getGuild().getId()+".csv").toFile(), true));
+                    PrintWriter writer = new PrintWriter(new FileWriter(Paths.get("data/banList/" + event.getGuild().getId() + ".csv").toFile(), true));
                     writer.println(loggedInfo);
                     writer.close();
                     if(getSpecialSetting(1, event.getGuild()) == 1){
-                        specialMessage(0, event.getGuild(), "The user <@"+user.getId()+"> has been banned from "+event.getGuild().getName()+".");
+                        specialMessage(0, event.getGuild(), "The user <@" + user.getId() + "> has been banned from " + event.getGuild().getName() + ".");
                     }
                     if(getSpecialSetting(2, event.getGuild()) == 1){
-                        privateMessage(user, "You have been banned from "+event.getGuild().getName()+" by <@"+event.getMember().getId()+(reason.equals("") ? ">. No reason was provided" : (">. Reason:"+reason)));
+                        privateMessage(user, "You have been banned from " + event.getGuild().getName() + " by <@" + event.getMember().getId() + (reason.equals("") ? ">. No reason was provided" : (">. Reason:" + reason)));
                     }
                     event.getGuild().ban(user, deletionLength, TimeUnit.HOURS).reason(reason).queue();
-                    logger.info(String.format("User %s was banned by %s in server %s. "+(reason.equals("") ? "No reason provided." : "Reason: %s"), user.getId(), event.getMember().getId(), event.getGuild().getName(), reason));
+                    logger.info(String.format("User %s was banned by %s in server %s. " + (reason.equals("") ? "No reason provided." : "Reason: %s"), user.getId(), event.getMember().getId(), event.getGuild().getName(), reason));
                     event.reply("Ban successful.").setEphemeral(true).queue();
                 }catch(Exception e){
                     //e.printStackTrace();
@@ -176,9 +183,9 @@ public class Bot extends ListenerAdapter{
                     logger.error(String.format("User %s encountered an unexpected ERROR while trying to ban %s in server %s. ", event.getMember().getId(), user.getId(), event.getGuild().getName()));
                     event.reply("An unexpected error has occurred.").queue();
                 }
-                break;
-            case "unban":
-                net.dv8tion.jda.api.entities.User unbanUser = event.getOption("banned").getAsUser();
+            }
+            case "unban" -> {
+                User unbanUser = event.getOption("banned").getAsUser();
                 if(!event.getMember().hasPermission(Permission.BAN_MEMBERS)){
                     insufficientPermissionsStandardResponseSlashCommand(event);
                     break;
@@ -186,7 +193,7 @@ public class Bot extends ListenerAdapter{
                 event.deferReply();
                 unban(unbanUser, event.getGuild());
                 try{
-                    Scanner scanner = new Scanner(Paths.get("data/banList/"+event.getGuild().getId()+".csv"));
+                    Scanner scanner = new Scanner(Paths.get("data/banList/" + event.getGuild().getId() + ".csv"));
                     ArrayList<String> lines = new ArrayList<>();
                     while(scanner.hasNextLine()){
                         String next = scanner.nextLine();
@@ -195,7 +202,7 @@ public class Bot extends ListenerAdapter{
                         }
                     }
                     scanner.close();
-                    PrintWriter writer = new PrintWriter(Paths.get("data/banList/"+event.getGuild().getId()+".csv").toFile());
+                    PrintWriter writer = new PrintWriter(Paths.get("data/banList/" + event.getGuild().getId() + ".csv").toFile());
                     for(String i : lines){
                         writer.println(i);
                     }
@@ -206,58 +213,60 @@ public class Bot extends ListenerAdapter{
                     logger.error(String.format("User %s encountered an unexpected ERROR while trying to unban %s in server %s.", event.getOption("banned").getAsUser().getId(), event.getMember().getId(), event.getGuild().getName()));
                     event.reply("An unexpected error has occurred.").queue();
                 }
-                break;
-            case "banappealset":
+            }
+            case "banappealset" -> {
                 if(!event.getMember().hasPermission(Permission.BAN_MEMBERS)){
                     insufficientPermissionsStandardResponseSlashCommand(event);
                 }
                 event.deferReply();
-                final String NAME = "data/banSettings/"+event.getGuild().getId()+".csv";
+                final String NAME = "data/banSettings/" + event.getGuild().getId() + ".csv";
                 int duration = Objects.requireNonNull(event.getOption("days")).getAsInt();
-                if(Math.abs(duration-183) > 183){
-                    event.reply("Erroneous duration - "+duration+" is not a valid duration. Input a positive number below 367.").setEphemeral(true).queue();
+                if(Math.abs(duration - 183) > 183){
+                    event.reply("Erroneous duration - " + duration + " is not a valid duration. Input a positive number below 367.").setEphemeral(true).queue();
                     break;
                 }
                 try{
                     Scanner scanner = new Scanner(Paths.get(NAME));
                     String[] settings = scanner.nextLine().split(",");
                     duration *= 86400;
-                    settings[0] = duration+"";
+                    settings[0] = duration + "";
                     PrintWriter writer = new PrintWriter(NAME);
-                    writer.println(settings[0]+","+settings[1]+","+settings[2]);
+                    writer.println(settings[0] + "," + settings[1] + "," + settings[2]);
                     writer.close();
-                }catch(Exception ignored){}
-                logger.info(String.format("User %s changed ban appeal time to %s in server %s. ", event.getMember().getId(), duration+"", event.getGuild().getName()));
+                }catch(Exception ignored){
+                }
+                logger.info(String.format("User %s changed ban appeal time to %s in server %s. ", event.getMember().getId(), duration + "", event.getGuild().getName()));
                 event.reply("The change has been successfully applied.").queue();
-                break;
-            case "reload":
+            }
+            case "reload" -> {
                 if(!event.getMember().hasPermission(Permission.MANAGE_SERVER, Permission.MANAGE_CHANNEL)){
                     insufficientPermissionsStandardResponseSlashCommand(event);
                 }
                 reloadFiles(event.getGuild());
                 logger.info(String.format("User %s reloaded data files in server %s. ", event.getMember().getId(), event.getGuild().getName()));
                 event.reply("Successfully reloaded!").queue();
-                break;
-            case "banmessageset":
+            }
+            case "banmessageset" -> {
                 if(!event.getMember().hasPermission(Permission.BAN_MEMBERS)){
                     insufficientPermissionsStandardResponseSlashCommand(event);
                     break;
                 }
                 event.deferReply();
                 try{
-                    final String NAME2 = "data/banSettings/"+event.getGuild().getId()+".csv";
+                    final String NAME2 = "data/banSettings/" + event.getGuild().getId() + ".csv";
                     Scanner scan = new Scanner(Paths.get(NAME2));
                     String setting = scan.nextLine();
                     int val1 = boolToInt(event.getOption("main").getAsBoolean());
                     int val2 = boolToInt(event.getOption("dm").getAsBoolean());
                     setting = setting.split(",")[0] + "," + val1 + "," + val2;
-                   PrintWriter writer = new PrintWriter(NAME2);
-                   writer.println(setting);
-                   writer.close();
-                }catch(Exception ignored){}
+                    PrintWriter writer = new PrintWriter(NAME2);
+                    writer.println(setting);
+                    writer.close();
+                }catch(Exception ignored){
+                }
                 event.reply("The change has been successfully applied.").queue();
                 logger.info(String.format("User %s changed ban message properties in server %s.", event.getMember().getId(), event.getGuild().getName()));
-                break;
+            }
         }
     }
     @Override
@@ -293,18 +302,16 @@ public class Bot extends ListenerAdapter{
     }
     public static void scheduledStatusChanger(){
         try{
-            String[] text = (new Scanner(Paths.get("data/Activities.txt")).useDelimiter("\\A").next().split("WATCHING"));
+            String[] text = (new Scanner(Paths.get("data/Activities.txt")).useDelimiter("\\A").next().split("\nWATCHING"));
             String[][] array = {text[0].split("\n"), text[1].split("\n")};
             Random rand = new Random();
-            int n = 0;
-            while(n == 0 || (n >= array[0].length ? (array[1][n - array[0].length]) : (array[0][n])).equals("")){
-                n = rand.nextInt(array[0].length + array[1].length);
-                //System.out.println((n >= array[0].length ? (array[1][n - array[0].length]) : (array[0][n])));
-            }
+            int n = rand.nextInt((array[0].length+array[1].length)-1);
+            //System.out.println(n);
+            //System.out.println((n >= array[0].length ? array[1][n - array[0].length] : array[0][n]));
             Activity activity = (n >= array[0].length ? Activity.watching(array[1][n - array[0].length]) : Activity.playing(array[0][n]));
             jda.getPresence().setActivity(activity);
             logger.info(String.format("Status changed to %s.", (activity.getType() == Activity.ActivityType.PLAYING ? "playing" : "watching") + String.format(" %s", activity.getName())));
-            scheduler.schedule(Bot::scheduledStatusChanger, STATUS_CHANGE_DURATION, TimeUnit.SECONDS);
+            scheduler.schedule(Bot::scheduledStatusChanger, 300, TimeUnit.SECONDS);
         }catch(Exception e){
             e.printStackTrace();
         }

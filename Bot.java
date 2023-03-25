@@ -305,10 +305,22 @@ public class Bot extends ListenerAdapter{
             String[] text = (new Scanner(Paths.get("data/Activities.txt")).useDelimiter("\\A").next().split("\nWATCHING"));
             String[][] array = {text[0].split("\n"), text[1].split("\n")};
             Random rand = new Random();
-            int n = rand.nextInt((array[0].length+array[1].length)-1);
+            String content = "";
+            boolean isPlaying = true;
+            while(content.equals("") || content.equals(" ") || content.equals("\n")){
+                int n = rand.nextInt((array[0].length + array[1].length) - 1);
+                isPlaying = n < array[0].length;
+                content = (!isPlaying ? array[1][n - array[0].length] : array[0][n]);
+                //System.out.println(content);
+            }
             //System.out.println(n);
             //System.out.println((n >= array[0].length ? array[1][n - array[0].length] : array[0][n]));
-            Activity activity = (n >= array[0].length ? Activity.watching(array[1][n - array[0].length]) : Activity.playing(array[0][n]));
+            Activity activity;
+            if(isPlaying){
+                activity = Activity.playing(content);
+            }else{
+                activity = Activity.watching(content);
+            }
             jda.getPresence().setActivity(activity);
             logger.info(String.format("Status changed to %s.", (activity.getType() == Activity.ActivityType.PLAYING ? "playing" : "watching") + String.format(" %s", activity.getName())));
             scheduler.schedule(Bot::scheduledStatusChanger, 300, TimeUnit.SECONDS);
@@ -326,7 +338,7 @@ public class Bot extends ListenerAdapter{
                 while(scan.hasNextLine()){
                     Guild guild = jda.getGuildById(name.substring(0, name.length()-4));
                     String text = scan.nextLine();
-                    if(text.equals("")){
+                    if(text.equals("\n")){
                         continue;
                     }
                     String[] content = text.split(",");

@@ -25,6 +25,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
+import java.net.HttpURLConnection;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -309,7 +314,40 @@ public class Bot extends ListenerAdapter{
                 logger.info(String.format("User %s changed ban message properties in server %s.", event.getMember().getId(), event.getGuild().getName()));
             }
             case "tr" -> {
-
+                String to = event.getOption("to").getAsString();
+                String from = (event.getOption("from") == null ? "" : event.getOption("from").getAsString());
+                String text;
+                try{
+                    text = URLEncoder.encode(event.getOption("text").getAsString(), "UTF-8");
+                }catch(Exception ignored){
+                    return;
+                }
+                System.out.println(text);
+                Map<String, String> langMap = Map.ofEntries(Map.entry("bulgarian" , "BG"), Map.entry("czech" , "CS"), Map.entry("danish" , "DA"), Map.entry("german" , "DE"), Map.entry("greek" , "EL"), Map.entry("english", "EN"), Map.entry("spanish" , "ES"), Map.entry("estonian" , "ET"), Map.entry("finnish" , "FI"), Map.entry("french" , "FR"), Map.entry("hungarian" , "HU"), Map.entry("indonesian" , "ID"), Map.entry("italian" , "IT"), Map.entry("japanese" , "JA"), Map.entry("korean" , "KO"), Map.entry("lithuanian" , "LT"), Map.entry("latvian" , "LV"), Map.entry("norwegian" , "NB"), Map.entry("dutch" , "NL"), Map.entry("polish" , "PL"), Map.entry("portuguese" , "PT"), Map.entry("romanian" , "RO"), Map.entry("russian" , "RU"), Map.entry("slovak" , "SK"), Map.entry("slovenian" , "SL"), Map.entry("swedish" , "SV"), Map.entry("turkish" , "TR"), Map.entry("ukrainian" , "UK"));
+                if(langMap.containsKey(to.toLowerCase())){
+                    to = langMap.get(to.toLowerCase());
+                }
+                if(langMap.containsKey(from.toLowerCase())){
+                    from = langMap.get(from.toLowerCase());
+                }
+                if(!(langMap.containsValue(to)) || (!(langMap.containsValue(from)) && !(from.equals("")))){
+                    event.reply("Incorrect language.").queue();
+                    break;
+                }
+                try{
+                    URL url = new URL(String.format("https://api-free.deepl.com/v2/translate?text=%s&target_lang=%s%s", text, to, (from.equals("") ? "" : "&source_lang="+from)));
+                    HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+                    connection.setRequestMethod("POST");
+                    connection.setRequestProperty("Authorization", String.format("DeepL-Auth-Key %s", System.getenv("DEEPL")));
+                    connection.connect();
+                    BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()));
+                    String[] output = reader.readLine().split("\"");
+                    System.out.println(Arrays.toString(output));
+                    String translatedContent = output[9];
+                    event.reply(translatedContent).queue();
+                }catch(Exception e){
+                    e.printStackTrace();
+                }
             }
         }
     }

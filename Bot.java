@@ -1,4 +1,6 @@
 // to be split into multiple files
+import jep.JepConfig;
+import jep.SharedInterpreter;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.JDABuilder;
 import net.dv8tion.jda.api.Permission;
@@ -11,6 +13,7 @@ import net.dv8tion.jda.api.events.guild.member.GuildMemberRemoveEvent;
 import net.dv8tion.jda.api.events.interaction.command.CommandAutoCompleteInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import net.dv8tion.jda.api.exceptions.ErrorHandler;
+import net.dv8tion.jda.api.exceptions.HierarchyException;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.dv8tion.jda.api.interactions.commands.Command;
 import net.dv8tion.jda.api.interactions.commands.DefaultMemberPermissions;
@@ -26,6 +29,7 @@ import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoField;
@@ -46,6 +50,7 @@ public class Bot extends ListenerAdapter{
     static Logger logger; // slf4j simple logger
     static JDA jda;
     static ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(32); // scheduler for scheduled events
+    static SharedInterpreter interpreter;
     public static void main(String[] args){
         logger = LoggerFactory.getLogger(Bot.class); // this entire block is logger and logfile creation
         try{
@@ -57,10 +62,26 @@ public class Bot extends ListenerAdapter{
         }catch(Exception e){
             System.out.println("Logger unable to be created.");
         }
-        jda = JDABuilder.createLight(System.getenv("JAVABOT")).addEventListeners(new Bot()).setActivity(Activity.playing("Test")).enableIntents(GUILD_MEMBERS).setMemberCachePolicy(MemberCachePolicy.ALL).build(); // bot creation
+        setJep();
+        jda = JDABuilder.createLight(System.getenv("JAVABOT")).addEventListeners(new Bot()).setActivity(Activity.playing("Loading...")).enableIntents(GUILD_MEMBERS).setMemberCachePolicy(MemberCachePolicy.ALL).build(); // bot creation
         addCommands();
         scheduler.schedule(Bot::scheduledStatusChanger, 3, TimeUnit.SECONDS); // 3 seconds, so it only executes after the main logic is loaded
         scheduler.schedule(Bot::automaticAppealer, 10, TimeUnit.SECONDS);
+    }
+    public static void setJep(){
+        long time = System.currentTimeMillis();
+        try{
+            jep.JepConfig jepConf = new JepConfig();
+            jepConf.addIncludePaths(System.getProperty("user.dir"));
+            SharedInterpreter.setConfig(jepConf);
+            interpreter = new SharedInterpreter();
+            interpreter.exec("import deepl");
+            logger.info(String.format("JEP successfully loaded in %d ms.", System.currentTimeMillis()-time));
+        }catch(Exception e){
+            e.printStackTrace();
+            logger.error("JEP encountered an unexpected ERROR while loading.");
+        }
+
     }
     public static int curtime(){
         return (int) LocalDateTime.now().toEpochSecond(ZoneOffset.ofHours(1));
@@ -75,6 +96,7 @@ public class Bot extends ListenerAdapter{
                 Commands.slash("test", "test"),
                 Commands.slash("set", "Set specific channel types, for more information provide \"info\" as argument.").setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.MANAGE_CHANNEL)).addOption(OptionType.STRING, "type", "Type of channel to set.", true, true).addOption(OptionType.CHANNEL, "channel", "The channel to set.", true).setGuildOnly(true),
                 Commands.slash("ban", "Bans people. Automatic appeal in a set number of days.").setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.BAN_MEMBERS)).addOption(OptionType.USER, "banned", "The user to ban.", true).addOption(OptionType.STRING, "reason", "Ban reason.", false).addOption(OptionType.INTEGER, "deletiontime", "The duration, for which the banned user's messages are to be deleted, in hours. 168 or less.", false).setGuildOnly(true),
+                Commands.slash("timeout", "Timeouts (mutes) people.").setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.KICK_MEMBERS)).addOption(OptionType.USER, "user", "The user to kick.", true).addOption(OptionType.STRING, "time", "Duration of the timeout.", true).setGuildOnly(true).addOption(OptionType.STRING, "reason", "Kick reason.", false).setGuildOnly(true),
                 Commands.slash("kick", "Kicks people.").setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.KICK_MEMBERS)).addOption(OptionType.USER, "kicked", "The user to kick.", true).addOption(OptionType.STRING, "reason", "Kick reason.", false).setGuildOnly(true),
                 Commands.slash("unban", "Unbans people.").setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.BAN_MEMBERS)).addOption(OptionType.USER, "banned", "The user to unban.", true).setGuildOnly(true),
                 Commands.slash("banappealset", "Sets the number of days to count until appeal. Input zero to disable appeals.").setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.BAN_MEMBERS)).addOption(OptionType.INTEGER, "days", "Number of days. Zero to disable. MAX = 366.", true).setGuildOnly(true),
@@ -140,6 +162,9 @@ public class Bot extends ListenerAdapter{
                     event.getGuild().kick(event.getOption("kicked").getAsUser()).reason(kickReason).queue();
                     logger.info(String.format("User %s was kicked by %s in server %s. " + (kickReason.equals("") ? "No reason provided." : "Reason: %s"), kicked.getId(), event.getMember().getId(), event.getGuild().getName(), kickReason));
                     event.reply("Kick successful.").setEphemeral(true).queue();
+                }catch(HierarchyException h){
+                    insufficientPermissionsStandardResponseSlashCommand(event);
+                    break;
                 }catch(Exception e){
                     logger.error(String.format("User %s encountered an unexpected ERROR while trying to ban %s in server %s. ", event.getMember().getId(), kicked.getId(), event.getGuild().getName()));
                     e.printStackTrace();
@@ -147,6 +172,34 @@ public class Bot extends ListenerAdapter{
                 }
                 if(getSpecialSetting(2, event.getGuild()) == 1){
                     privateMessage(kicked, "You have been kicked from " + event.getGuild().getName() + " by <@" + event.getMember().getId() + (kickReason.equals("") ? ">. No reason was provided" : (">. Reason:" + kickReason)));
+                }
+            }
+            case "timeout" -> {
+                if(!event.getMember().hasPermission(Permission.KICK_MEMBERS)){
+                    insufficientPermissionsStandardResponseSlashCommand(event);
+                    break;
+                }
+                int seconds = processDuration(event.getOption("time").getAsString());
+                if(seconds < 0){
+                    event.reply("Incorrect duration. User cannot be timeouted.").setEphemeral(true).queue();
+                    logger.warn(String.format("User %s attempted to execute an illegal command.", event.getMember().getId()));
+                    break;
+                }
+                User user = event.getOption("user").getAsUser();
+                String reason = (event.getOption("reason") != null ? event.getOption("reason").getAsString() : "");
+                try{
+                    event.getGuild().timeoutFor(user, seconds, TimeUnit.SECONDS).queue();
+                    if(getSpecialSetting(2, event.getGuild()) == 1){
+                        privateMessage(user, "You have been banned from " + event.getGuild().getName() + " by <@" + event.getMember().getId() + (reason.equals("") ? ">. No reason was provided" : (">. Reason:" + reason)));
+                    }
+                    logger.info(String.format("User %s was timeouted by %s in server %s for %d seconds. " + (reason.equals("") ? "No reason provided." : "Reason: %s"), user.getId(), event.getMember().getId(), event.getGuild().getName(), seconds, reason));
+                    event.reply("User successfully timeouted.").setEphemeral(true).queue();
+                }catch(HierarchyException h){
+                    insufficientPermissionsStandardResponseSlashCommand(event);
+                    break;
+                }catch(Exception e){
+                    e.printStackTrace();
+                    logger.error(String.format("User %s encountered an unexpected ERROR while trying to ban %s in server %s. ", event.getMember().getId(), user.getId(), event.getGuild().getName()));
                 }
             }
             case "ban" -> {
@@ -177,6 +230,9 @@ public class Bot extends ListenerAdapter{
                     event.getGuild().ban(user, deletionLength, TimeUnit.HOURS).reason(reason).queue();
                     logger.info(String.format("User %s was banned by %s in server %s. " + (reason.equals("") ? "No reason provided." : "Reason: %s"), user.getId(), event.getMember().getId(), event.getGuild().getName(), reason));
                     event.reply("Ban successful.").setEphemeral(true).queue();
+                }catch(HierarchyException h){
+                    insufficientPermissionsStandardResponseSlashCommand(event);
+                    break;
                 }catch(Exception e){
                     //e.printStackTrace();
                     reloadFiles(event.getGuild());
@@ -307,7 +363,7 @@ public class Bot extends ListenerAdapter{
             Random rand = new Random();
             String content = "";
             boolean isPlaying = true;
-            while(content.equals("") || content.equals(" ") || content.equals("\n")){
+            while(content.isBlank()){
                 int n = rand.nextInt((array[0].length + array[1].length) - 1);
                 isPlaying = n < array[0].length;
                 content = (!isPlaying ? array[1][n - array[0].length] : array[0][n]);
@@ -502,8 +558,14 @@ public class Bot extends ListenerAdapter{
         // 0 - main chat, 1 - announcement chat, 2 - staff chat, 3 - logging chat, 4 - rules chat
     }
     public static int processDuration(String duration){
-        HashMap<Character, Integer> eventMap = new HashMap<>(){{put('s', 1); put('m', 60); put('h', 3600); put('d', 86400);}};
-        return (int) (Double.parseDouble(duration.substring(0, duration.length()-1))*eventMap.get(duration.charAt(duration.length()-1)));
+        try{
+            double time = (Double.parseDouble(duration.substring(0, duration.length()-1)));
+            char unit = duration.charAt(duration.length()-1);
+            HashMap<Character, Integer> eventMap = new HashMap<>(){{put('s', 1); put('m', 60); put('h', 3600); put('d', 86400);}};
+            return (eventMap.containsKey(duration.charAt(duration.length()-1)) ? (int) (time*eventMap.get(unit)) : -1);
+        }catch(Exception e){
+            return -1;
+        }
     }
     public static void reloadFile(Guild guild, String dir, int zeroes){
         try{

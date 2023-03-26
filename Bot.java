@@ -320,7 +320,11 @@ public class Bot extends ListenerAdapter{
                 try{
                     text = URLEncoder.encode(event.getOption("text").getAsString(), "UTF-8");
                 }catch(Exception ignored){
-                    return;
+                    break;
+                }
+                if(text.length() > 128){
+                    event.reply("Too long!").queue();
+                    break;
                 }
                 System.out.println(text);
                 Map<String, String> langMap = Map.ofEntries(Map.entry("bulgarian" , "BG"), Map.entry("czech" , "CS"), Map.entry("danish" , "DA"), Map.entry("german" , "DE"), Map.entry("greek" , "EL"), Map.entry("english", "EN"), Map.entry("spanish" , "ES"), Map.entry("estonian" , "ET"), Map.entry("finnish" , "FI"), Map.entry("french" , "FR"), Map.entry("hungarian" , "HU"), Map.entry("indonesian" , "ID"), Map.entry("italian" , "IT"), Map.entry("japanese" , "JA"), Map.entry("korean" , "KO"), Map.entry("lithuanian" , "LT"), Map.entry("latvian" , "LV"), Map.entry("norwegian" , "NB"), Map.entry("dutch" , "NL"), Map.entry("polish" , "PL"), Map.entry("portuguese" , "PT"), Map.entry("romanian" , "RO"), Map.entry("russian" , "RU"), Map.entry("slovak" , "SK"), Map.entry("slovenian" , "SL"), Map.entry("swedish" , "SV"), Map.entry("turkish" , "TR"), Map.entry("ukrainian" , "UK"));

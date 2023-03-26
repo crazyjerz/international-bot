@@ -62,26 +62,10 @@ public class Bot extends ListenerAdapter{
         }catch(Exception e){
             System.out.println("Logger unable to be created.");
         }
-        setJep();
         jda = JDABuilder.createLight(System.getenv("JAVABOT")).addEventListeners(new Bot()).setActivity(Activity.playing("Loading...")).enableIntents(GUILD_MEMBERS).setMemberCachePolicy(MemberCachePolicy.ALL).build(); // bot creation
         addCommands();
         scheduler.schedule(Bot::scheduledStatusChanger, 3, TimeUnit.SECONDS); // 3 seconds, so it only executes after the main logic is loaded
         scheduler.schedule(Bot::automaticAppealer, 10, TimeUnit.SECONDS);
-    }
-    public static void setJep(){
-        long time = System.currentTimeMillis();
-        try{
-            jep.JepConfig jepConf = new JepConfig();
-            jepConf.addIncludePaths(System.getProperty("user.dir"));
-            SharedInterpreter.setConfig(jepConf);
-            interpreter = new SharedInterpreter();
-            interpreter.exec("import deepl");
-            logger.info(String.format("JEP successfully loaded in %d ms.", System.currentTimeMillis()-time));
-        }catch(Exception e){
-            e.printStackTrace();
-            logger.error("JEP encountered an unexpected ERROR while loading.");
-        }
-
     }
     public static int curtime(){
         return (int) LocalDateTime.now().toEpochSecond(ZoneOffset.ofHours(1));
@@ -101,7 +85,8 @@ public class Bot extends ListenerAdapter{
                 Commands.slash("unban", "Unbans people.").setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.BAN_MEMBERS)).addOption(OptionType.USER, "banned", "The user to unban.", true).setGuildOnly(true),
                 Commands.slash("banappealset", "Sets the number of days to count until appeal. Input zero to disable appeals.").setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.BAN_MEMBERS)).addOption(OptionType.INTEGER, "days", "Number of days. Zero to disable. MAX = 366.", true).setGuildOnly(true),
                 Commands.slash("banmessageset", "Set whether the bot should announce bans in main chat (arg 1) or in the banned user's DMs (arg 2).").setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.BAN_MEMBERS)).addOption(OptionType.BOOLEAN, "main", "Announcing bans in main chat.", false).addOption(OptionType.BOOLEAN, "dm", "Announcing bans in DMs.", false).setGuildOnly(true),
-                Commands.slash("reload", "Reload file creation.").setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.MANAGE_SERVER, Permission.MANAGE_CHANNEL)).setGuildOnly(true)
+                Commands.slash("reload", "Reload file creation.").setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.MANAGE_SERVER, Permission.MANAGE_CHANNEL)).setGuildOnly(true),
+                Commands.slash("tr", "Translate.").addOption(OptionType.STRING, "text", "What to translate?", true).addOption(OptionType.STRING, "to", "To what language? Default is English", false).addOption(OptionType.STRING, "from", "From what language?", false).setGuildOnly(false)
         ).queue();
     }
     @Override
@@ -322,6 +307,9 @@ public class Bot extends ListenerAdapter{
                 }
                 event.reply("The change has been successfully applied.").queue();
                 logger.info(String.format("User %s changed ban message properties in server %s.", event.getMember().getId(), event.getGuild().getName()));
+            }
+            case "tr" -> {
+
             }
         }
     }

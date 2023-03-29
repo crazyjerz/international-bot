@@ -333,10 +333,11 @@ public class Bot extends ListenerAdapter{
                     break;
                 }
                 try{
-                    URL url = new URL(String.format("https://api-free.deepl.com/v2/translate?text=%s&target_lang=%s%s", text.toUpperCase(), to.toUpperCase(), (from.equals("") ? "" : "&source_lang=" + from)));
+                    URL url = new URL(String.format("https://api-free.deepl.com/v2/translate?text=%s%s&target_lang=%s", text, (from.equals("") ? "" : "&source_lang=" + from), to.toUpperCase()));
                     HttpURLConnection connection = (HttpURLConnection) url.openConnection();
                     connection.setRequestMethod("POST");
                     connection.setRequestProperty("Authorization", String.format("DeepL-Auth-Key %s", System.getenv("DEEPL")));
+                    connection.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
                     connection.connect();
                     BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()));
                     String[] output = reader.readLine().split("\"");

@@ -1,6 +1,4 @@
 // to be split into multiple files
-import jep.JepConfig;
-import jep.SharedInterpreter;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.JDABuilder;
 import net.dv8tion.jda.api.Permission;
@@ -26,25 +24,18 @@ import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.net.HttpURLConnection;
-import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
-import java.time.temporal.ChronoField;
-import java.time.temporal.TemporalUnit;
 import java.util.*;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.time.LocalDateTime;
 
@@ -57,7 +48,6 @@ public class Bot extends ListenerAdapter{
     static Logger logger; // slf4j simple logger
     static JDA jda;
     static ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(32); // scheduler for scheduled events
-    static SharedInterpreter interpreter;
     public static void main(String[] args){
         logger = LoggerFactory.getLogger(Bot.class); // this entire block is logger and logfile creation
         try{
@@ -94,7 +84,7 @@ public class Bot extends ListenerAdapter{
                 Commands.slash("banmessageset", "Set whether the bot should announce bans in main chat (arg 1) or in the banned user's DMs (arg 2).").setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.BAN_MEMBERS)).addOption(OptionType.BOOLEAN, "main", "Announcing bans in main chat.", false).addOption(OptionType.BOOLEAN, "dm", "Announcing bans in DMs.", false).setGuildOnly(true),
                 Commands.slash("reload", "Reload file creation.").setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.MANAGE_SERVER, Permission.MANAGE_CHANNEL)).setGuildOnly(true),
                 Commands.slash("tr", "Translate.").addOption(OptionType.STRING, "text", "What to translate?", true).addOption(OptionType.STRING, "to", "To what language? Default is English", false).addOption(OptionType.STRING, "from", "From what language?", false).setGuildOnly(false),
-                Commands.slash("roll", "Roll.").addOption(OptionType.STRING, "dice", "What dice to roll? Format xdy.").setGuildOnly(false)
+                Commands.slash("roll", "Roll.").addOption(OptionType.STRING, "dice", "What dice to roll? Format xdy.", false).setGuildOnly(false)
         ).queue();
     }
     @Override
@@ -360,8 +350,8 @@ public class Bot extends ListenerAdapter{
                 }
             }
             case "roll" -> {
-                String rawInput = event.getOption("dice").getAsString();
-                if(!rawInput.matches("^([0-9]*d?[1-9][0-9]*\\+)*([0-9]*d?[1-9][0-9]*)?$")){
+                String rawInput = (event.getOption("dice") == null ? "1d6" : event.getOption("dice").getAsString());
+                if(!rawInput.matches("^([0-9]{0,2}d?[1-9][0-9]{0,7}\\+)*([0-9]{0,2}d?[1-9][0-9]{0,7})?$")){
                     event.reply("Wrong format!").queue();
                     break;
                 }
@@ -379,11 +369,11 @@ public class Bot extends ListenerAdapter{
                     String[] tempSplitInput = (splitInput[i].contains("d") ? splitInput[i].split("d") : new String[]{"1", (splitInput[i])});
                     outputStr += tempSplitInput[0] + "d" + tempSplitInput[1] + ": ";
                     int bonus = (splitInput.length - 1 != i ? (!(splitInput[i + 1].contains("d")) ? Integer.parseInt(splitInput[i + 1]) : 0) : 0);
+                    if(Integer.parseInt(tempSplitInput[0]) == 0){
+                        event.reply("Wrong input!").queue();
+                        return;
+                    }
                     for(int j = 1; j <= Integer.parseInt(tempSplitInput[0]); j++){
-                        if(Integer.parseInt(tempSplitInput[0]) > 100){
-                            event.reply("Too many dice!").queue();
-                        }
-
                         int randomNum = random.nextInt(Integer.parseInt(tempSplitInput[1])) + bonus + 1;
                         skipNext = (bonus != 0);
                         outputInt += randomNum;
@@ -450,7 +440,7 @@ public class Bot extends ListenerAdapter{
             }
             jda.getPresence().setActivity(activity);
             logger.info(String.format("Status changed to %s.", (activity.getType() == Activity.ActivityType.PLAYING ? "playing" : "watching") + String.format(" %s", activity.getName())));
-            scheduler.schedule(Bot::scheduledStatusChanger, 300, TimeUnit.SECONDS);
+            scheduler.schedule(Bot::scheduledStatusChanger, STATUS_CHANGE_DURATION, TimeUnit.SECONDS);
         }catch(Exception e){
             e.printStackTrace();
         }

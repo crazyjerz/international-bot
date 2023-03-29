@@ -43,6 +43,8 @@ import java.util.*;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.time.LocalDateTime;
 
@@ -91,7 +93,8 @@ public class Bot extends ListenerAdapter{
                 Commands.slash("banappealset", "Sets the number of days to count until appeal. Input zero to disable appeals.").setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.BAN_MEMBERS)).addOption(OptionType.INTEGER, "days", "Number of days. Zero to disable. MAX = 366.", true).setGuildOnly(true),
                 Commands.slash("banmessageset", "Set whether the bot should announce bans in main chat (arg 1) or in the banned user's DMs (arg 2).").setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.BAN_MEMBERS)).addOption(OptionType.BOOLEAN, "main", "Announcing bans in main chat.", false).addOption(OptionType.BOOLEAN, "dm", "Announcing bans in DMs.", false).setGuildOnly(true),
                 Commands.slash("reload", "Reload file creation.").setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.MANAGE_SERVER, Permission.MANAGE_CHANNEL)).setGuildOnly(true),
-                Commands.slash("tr", "Translate.").addOption(OptionType.STRING, "text", "What to translate?", true).addOption(OptionType.STRING, "to", "To what language? Default is English", false).addOption(OptionType.STRING, "from", "From what language?", false).setGuildOnly(false)
+                Commands.slash("tr", "Translate.").addOption(OptionType.STRING, "text", "What to translate?", true).addOption(OptionType.STRING, "to", "To what language? Default is English", false).addOption(OptionType.STRING, "from", "From what language?", false).setGuildOnly(false),
+                Commands.slash("roll", "Roll.").addOption(OptionType.STRING, "dice", "What dice to roll? Format xdy.").setGuildOnly(false)
         ).queue();
     }
     @Override
@@ -314,8 +317,9 @@ public class Bot extends ListenerAdapter{
                 logger.info(String.format("User %s changed ban message properties in server %s.", event.getMember().getId(), event.getGuild().getName()));
             }
             case "tr" -> {
+                long time = System.currentTimeMillis();
                 String to = event.getOption("to").getAsString();
-                String from = (event.getOption("from") == null ? "" : event.getOption("from").getAsString());
+                String from = (event.getOption("from") == null ? "EN" : event.getOption("from").getAsString());
                 String text;
                 try{
                     text = URLEncoder.encode(event.getOption("text").getAsString(), "UTF-8");
@@ -334,12 +338,12 @@ public class Bot extends ListenerAdapter{
                 if(langMap.containsKey(from.toLowerCase())){
                     from = langMap.get(from.toLowerCase());
                 }
-                if(!(langMap.containsValue(to)) || (!(langMap.containsValue(from)) && !(from.equals("")))){
+                if(!(langMap.containsValue(to.toUpperCase())) || (!(langMap.containsValue(from.toUpperCase())) && !(from.equals("")))){
                     event.reply("Incorrect language.").queue();
                     break;
                 }
                 try{
-                    URL url = new URL(String.format("https://api-free.deepl.com/v2/translate?text=%s&target_lang=%s%s", text, to, (from.equals("") ? "" : "&source_lang="+from)));
+                    URL url = new URL(String.format("https://api-free.deepl.com/v2/translate?text=%s&target_lang=%s%s", text.toUpperCase(), to.toUpperCase(), (from.equals("") ? "" : "&source_lang="+from)));
                     HttpURLConnection connection = (HttpURLConnection) url.openConnection();
                     connection.setRequestMethod("POST");
                     connection.setRequestProperty("Authorization", String.format("DeepL-Auth-Key %s", System.getenv("DEEPL")));
@@ -348,10 +352,37 @@ public class Bot extends ListenerAdapter{
                     String[] output = reader.readLine().split("\"");
                     System.out.println(Arrays.toString(output));
                     String translatedContent = output[9];
+                    logger.info(String.format("User %s translated %d chars of text in server %s. Request time: %d ms.", event.getMember().getId(), text.length(), event.getGuild().getName(), System.currentTimeMillis()-time));
                     event.reply(translatedContent).queue();
                 }catch(Exception e){
                     e.printStackTrace();
+                    logger.info(String.format("User %s encountered an unexpected ERROR while trying to translate text in server %s. Request time: %d ms.", event.getMember().getId(), event.getGuild().getName(), System.currentTimeMillis()-time));
                 }
+            }
+            case "roll" -> {
+                String rawInput = event.getOption("dice").getAsString();
+                if(!rawInput.matches("^([0-9]*d?[1-9][0-9]*\\+)*([0-9]*d?[1-9][0-9]*)?$")){
+                    event.reply("Wrong format!").queue();
+                    break;
+                }
+                rawInput = rawInput.replaceAll("^d", "1d").replaceAll("\\+d", "\\+1d");
+                String[] splitInput = rawInput.split("\s*\\+\s*");
+                Random random = new Random();
+                int outputInt = 0;
+                String outputStr = "";
+                for(int i = 0; i < splitInput.length; i++){
+                    String[] tempSplitInput = (splitInput[i].contains("d") ? splitInput[i].split("d") : new String[]{"1", (splitInput[i])});
+                    for(int j = 1; j <= Integer.parseInt(tempSplitInput[0]); j++){
+                        if(Integer.parseInt(tempSplitInput[0]) > 100){
+                            event.reply("Too many dice!").queue();
+                        }
+                        int randomNum = random.nextInt(Integer.parseInt(tempSplitInput[1]))+1;
+                        outputInt += randomNum;
+                        outputStr += randomNum + " + ";
+                    }
+                }
+                outputStr = (outputStr.length() > 100 ? "" : " ("+outputStr.substring(0, outputStr.length()-3)+")");
+                event.reply(outputInt+outputStr).queue();
             }
         }
     }

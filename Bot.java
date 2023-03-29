@@ -331,7 +331,7 @@ public class Bot extends ListenerAdapter{
                     break;
                 }
                 System.out.println(text);
-                Map<String, String> langMap = Map.ofEntries(Map.entry("bulgarian" , "BG"), Map.entry("czech" , "CS"), Map.entry("danish" , "DA"), Map.entry("german" , "DE"), Map.entry("greek" , "EL"), Map.entry("english", "EN"), Map.entry("spanish" , "ES"), Map.entry("estonian" , "ET"), Map.entry("finnish" , "FI"), Map.entry("french" , "FR"), Map.entry("hungarian" , "HU"), Map.entry("indonesian" , "ID"), Map.entry("italian" , "IT"), Map.entry("japanese" , "JA"), Map.entry("korean" , "KO"), Map.entry("lithuanian" , "LT"), Map.entry("latvian" , "LV"), Map.entry("norwegian" , "NB"), Map.entry("dutch" , "NL"), Map.entry("polish" , "PL"), Map.entry("portuguese" , "PT"), Map.entry("romanian" , "RO"), Map.entry("russian" , "RU"), Map.entry("slovak" , "SK"), Map.entry("slovenian" , "SL"), Map.entry("swedish" , "SV"), Map.entry("turkish" , "TR"), Map.entry("ukrainian" , "UK"));
+                Map<String, String> langMap = Map.ofEntries(Map.entry("bulgarian", "BG"), Map.entry("czech", "CS"), Map.entry("danish", "DA"), Map.entry("german", "DE"), Map.entry("greek", "EL"), Map.entry("english", "EN"), Map.entry("spanish", "ES"), Map.entry("estonian", "ET"), Map.entry("finnish", "FI"), Map.entry("french", "FR"), Map.entry("hungarian", "HU"), Map.entry("indonesian", "ID"), Map.entry("italian", "IT"), Map.entry("japanese", "JA"), Map.entry("korean", "KO"), Map.entry("lithuanian", "LT"), Map.entry("latvian", "LV"), Map.entry("norwegian", "NB"), Map.entry("dutch", "NL"), Map.entry("polish", "PL"), Map.entry("portuguese", "PT"), Map.entry("romanian", "RO"), Map.entry("russian", "RU"), Map.entry("slovak", "SK"), Map.entry("slovenian", "SL"), Map.entry("swedish", "SV"), Map.entry("turkish", "TR"), Map.entry("ukrainian", "UK"));
                 if(langMap.containsKey(to.toLowerCase())){
                     to = langMap.get(to.toLowerCase());
                 }
@@ -343,7 +343,7 @@ public class Bot extends ListenerAdapter{
                     break;
                 }
                 try{
-                    URL url = new URL(String.format("https://api-free.deepl.com/v2/translate?text=%s&target_lang=%s%s", text.toUpperCase(), to.toUpperCase(), (from.equals("") ? "" : "&source_lang="+from)));
+                    URL url = new URL(String.format("https://api-free.deepl.com/v2/translate?text=%s&target_lang=%s%s", text.toUpperCase(), to.toUpperCase(), (from.equals("") ? "" : "&source_lang=" + from)));
                     HttpURLConnection connection = (HttpURLConnection) url.openConnection();
                     connection.setRequestMethod("POST");
                     connection.setRequestProperty("Authorization", String.format("DeepL-Auth-Key %s", System.getenv("DEEPL")));
@@ -352,11 +352,11 @@ public class Bot extends ListenerAdapter{
                     String[] output = reader.readLine().split("\"");
                     System.out.println(Arrays.toString(output));
                     String translatedContent = output[9];
-                    logger.info(String.format("User %s translated %d chars of text in server %s. Request time: %d ms.", event.getMember().getId(), text.length(), event.getGuild().getName(), System.currentTimeMillis()-time));
+                    logger.info(String.format("User %s translated %d chars of text in server %s. Request time: %d ms.", event.getMember().getId(), text.length(), event.getGuild().getName(), System.currentTimeMillis() - time));
                     event.reply(translatedContent).queue();
                 }catch(Exception e){
                     e.printStackTrace();
-                    logger.info(String.format("User %s encountered an unexpected ERROR while trying to translate text in server %s. Request time: %d ms.", event.getMember().getId(), event.getGuild().getName(), System.currentTimeMillis()-time));
+                    logger.info(String.format("User %s encountered an unexpected ERROR while trying to translate text in server %s. Request time: %d ms.", event.getMember().getId(), event.getGuild().getName(), System.currentTimeMillis() - time));
                 }
             }
             case "roll" -> {
@@ -370,19 +370,29 @@ public class Bot extends ListenerAdapter{
                 Random random = new Random();
                 int outputInt = 0;
                 String outputStr = "";
+                boolean skipNext = false;
                 for(int i = 0; i < splitInput.length; i++){
+                    if(skipNext){
+                        skipNext = false;
+                        continue;
+                    }
                     String[] tempSplitInput = (splitInput[i].contains("d") ? splitInput[i].split("d") : new String[]{"1", (splitInput[i])});
+                    outputStr += tempSplitInput[0] + "d" + tempSplitInput[1] + ": ";
+                    int bonus = (splitInput.length - 1 != i ? (!(splitInput[i + 1].contains("d")) ? Integer.parseInt(splitInput[i + 1]) : 0) : 0);
                     for(int j = 1; j <= Integer.parseInt(tempSplitInput[0]); j++){
                         if(Integer.parseInt(tempSplitInput[0]) > 100){
                             event.reply("Too many dice!").queue();
                         }
-                        int randomNum = random.nextInt(Integer.parseInt(tempSplitInput[1]))+1;
+
+                        int randomNum = random.nextInt(Integer.parseInt(tempSplitInput[1])) + bonus + 1;
+                        skipNext = (bonus != 0);
                         outputInt += randomNum;
-                        outputStr += randomNum + " + ";
+                        outputStr += (randomNum - bonus) + ", ";
                     }
+                    outputStr = outputStr.replaceAll(",\s$", (skipNext ? " (+" + bonus + ")\n" : "\n"));
                 }
-                outputStr = (outputStr.length() > 100 ? "" : " ("+outputStr.substring(0, outputStr.length()-3)+")");
-                event.reply(outputInt+outputStr).queue();
+                outputStr += "Total: " + outputInt;
+                event.reply(outputStr).queue();
             }
         }
     }

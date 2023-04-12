@@ -26,6 +26,7 @@ import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLEncoder;
+import java.net.UnknownHostException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -84,7 +85,9 @@ public class Bot extends ListenerAdapter{
                 Commands.slash("banmessageset", "Set whether the bot should announce bans in main chat (arg 1) or in the banned user's DMs (arg 2).").setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.BAN_MEMBERS)).addOption(OptionType.BOOLEAN, "main", "Announcing bans in main chat.", false).addOption(OptionType.BOOLEAN, "dm", "Announcing bans in DMs.", false).setGuildOnly(true),
                 Commands.slash("reload", "Reload file creation.").setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.MANAGE_SERVER, Permission.MANAGE_CHANNEL)).setGuildOnly(true),
                 Commands.slash("tr", "Translate.").addOption(OptionType.STRING, "text", "What to translate?", true).addOption(OptionType.STRING, "to", "To what language? Default is English", false).addOption(OptionType.STRING, "from", "From what language?", false).setGuildOnly(false),
-                Commands.slash("roll", "Roll.").addOption(OptionType.STRING, "dice", "What dice to roll? Format xdy.", false).setGuildOnly(false)
+                Commands.slash("roll", "Roll.").addOption(OptionType.STRING, "dice", "What dice to roll? Format xdy+zdt. Default: 1d6.", false).setGuildOnly(false),
+                Commands.slash("random", "Random Wikipedia article in any language.").addOption(OptionType.STRING, "language", "Default: English, provide a valid Wikipedia language code (e.g. German - de)", false).setGuildOnly(false),
+                Commands.slash("data", "Information about the bot.").setGuildOnly(false)
         ).queue();
     }
     @Override
@@ -320,7 +323,7 @@ public class Bot extends ListenerAdapter{
                     event.reply("Too long!").queue();
                     break;
                 }
-                System.out.println(text);
+                //System.out.println(text);
                 Map<String, String> langMap = Map.ofEntries(Map.entry("bulgarian", "BG"), Map.entry("czech", "CS"), Map.entry("danish", "DA"), Map.entry("german", "DE"), Map.entry("greek", "EL"), Map.entry("english", "EN"), Map.entry("spanish", "ES"), Map.entry("estonian", "ET"), Map.entry("finnish", "FI"), Map.entry("french", "FR"), Map.entry("hungarian", "HU"), Map.entry("indonesian", "ID"), Map.entry("italian", "IT"), Map.entry("japanese", "JA"), Map.entry("korean", "KO"), Map.entry("lithuanian", "LT"), Map.entry("latvian", "LV"), Map.entry("norwegian", "NB"), Map.entry("dutch", "NL"), Map.entry("polish", "PL"), Map.entry("portuguese", "PT"), Map.entry("romanian", "RO"), Map.entry("russian", "RU"), Map.entry("slovak", "SK"), Map.entry("slovenian", "SL"), Map.entry("swedish", "SV"), Map.entry("turkish", "TR"), Map.entry("ukrainian", "UK"));
                 if(langMap.containsKey(to.toLowerCase())){
                     to = langMap.get(to.toLowerCase());
@@ -341,13 +344,13 @@ public class Bot extends ListenerAdapter{
                     connection.connect();
                     BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()));
                     String[] output = reader.readLine().split("\"");
-                    System.out.println(Arrays.toString(output));
+                    //System.out.println(Arrays.toString(output));
                     String translatedContent = output[9];
                     logger.info(String.format("User %s translated %d chars of text in server %s. Request time: %d ms.", event.getMember().getId(), text.length(), event.getGuild().getName(), System.currentTimeMillis() - time));
                     event.reply(translatedContent).queue();
                 }catch(Exception e){
                     e.printStackTrace();
-                    logger.info(String.format("User %s encountered an unexpected ERROR while trying to translate text in server %s. Request time: %d ms.", event.getMember().getId(), event.getGuild().getName(), System.currentTimeMillis() - time));
+                    logger.error(String.format("User %s encountered an unexpected ERROR while trying to translate text in server %s. Request time: %d ms.", event.getMember().getId(), event.getGuild().getName(), System.currentTimeMillis() - time));
                 }
             }
             case "roll" -> {
@@ -382,9 +385,38 @@ public class Bot extends ListenerAdapter{
                     }
                     outputStr = outputStr.replaceAll(",\s$", (skipNext ? " (+" + bonus + ")\n" : "\n"));
                 }
-                outputStr += "Total: " + outputInt;
+                outputStr += String.format("**Total: %d **", outputInt);
                 event.reply(outputStr).queue();
             }
+            case "random" -> {
+                long time = System.currentTimeMillis();
+                try{
+                    String language = (event.getOption("language") == null ? "en" : event.getOption("language").getAsString());
+                    URL url = new URL(String.format("https://%s.wikipedia.org/wiki/Special:Random", language));
+                    HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+                    connection.setRequestMethod("GET");
+                    connection.connect();
+                    BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()));
+                    String curline = "";
+                    while(!curline.contains("link rel=\"canonical\"")){ // not the most efficient approach, but works (?)
+                        curline = reader.readLine();
+                        //System.out.println(curline);
+                    }
+                    logger.info(String.format("User %s used RANDOM in server %s. Request time: %d ms.", event.getMember().getId(), event.getGuild().getName(), System.currentTimeMillis() - time));
+                    event.reply(curline.substring(28, curline.length()-3)).queue();
+                }catch(NullPointerException e){
+                    logger.error(String.format("User %s encountered a Wikipedia server ERROR while trying to use RANDOM in server %s. Request time: %d ms.", event.getMember().getId(), event.getGuild().getName(), System.currentTimeMillis() - time));
+                    event.reply("No such language exists or the Wikipedia servers are not responding.").queue();
+                }catch(UnknownHostException f){
+                    logger.warn(String.format("User %s attempted to execute an illegal command in server %s. Request time: %d ms.", event.getMember().getId(), event.getGuild().getName(), System.currentTimeMillis() - time));
+                    event.reply("No such language exists.").queue();
+                }catch(Exception g){
+                    logger.error(String.format("User %s encountered an unexpected ERROR while trying to use RANDOM in server %s. Request time: %d ms.", event.getMember().getId(), event.getGuild().getName(), System.currentTimeMillis() - time));
+                    event.reply("An unexpected error has occurred. Contact the developer.").queue();
+                }
+            }
+            case "data" ->
+                event.reply(String.format("**International Bot**\n **Current version:** Alpha 0.4.5a\n **Created for:** International Hangout\n **Owner:** crazyjerz#0849\n **Runs on:**\n   Eclipse Adoptium Java 17 (https://adoptium.net/)\n  JDA 5.0.0 (https://github.com/DV8FromTheWorld/JDA)\n **Running since:** 14 March 2023")).setEphemeral(true).queue();
         }
     }
     @Override

@@ -10,6 +10,7 @@ import net.dv8tion.jda.api.events.guild.member.GuildMemberJoinEvent;
 import net.dv8tion.jda.api.events.guild.member.GuildMemberRemoveEvent;
 import net.dv8tion.jda.api.events.interaction.command.CommandAutoCompleteInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
+import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
 import net.dv8tion.jda.api.exceptions.ErrorHandler;
 import net.dv8tion.jda.api.exceptions.HierarchyException;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
@@ -31,6 +32,7 @@ import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -78,6 +80,7 @@ public class Bot extends ListenerAdapter{
                 Commands.slash("test", "test"),
                 Commands.slash("set", "Set specific channel types, for more information provide \"info\" as argument.").setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.MANAGE_CHANNEL)).addOption(OptionType.STRING, "type", "Type of channel to set.", true, true).addOption(OptionType.CHANNEL, "channel", "The channel to set.", true).setGuildOnly(true),
                 Commands.slash("ban", "Bans people. Automatic appeal in a set number of days.").setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.BAN_MEMBERS)).addOption(OptionType.USER, "banned", "The user to ban.", true).addOption(OptionType.STRING, "reason", "Ban reason.", false).addOption(OptionType.INTEGER, "deletiontime", "The duration, for which the banned user's messages are to be deleted, in hours. 168 or less.", false).setGuildOnly(true),
+                Commands.slash("setverifytime", "Sets the number of hours to get verified.").setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.MESSAGE_MANAGE)).addOption(OptionType.INTEGER, "hours", "Number of hours. Set to zero to disable.", true, true),
                 Commands.slash("timeout", "Timeouts (mutes) people.").setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.KICK_MEMBERS)).addOption(OptionType.USER, "user", "The user to kick.", true).addOption(OptionType.STRING, "time", "Duration of the timeout.", true).setGuildOnly(true).addOption(OptionType.STRING, "reason", "Kick reason.", false).setGuildOnly(true),
                 Commands.slash("kick", "Kicks people.").setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.KICK_MEMBERS)).addOption(OptionType.USER, "kicked", "The user to kick.", true).addOption(OptionType.STRING, "reason", "Kick reason.", false).setGuildOnly(true),
                 Commands.slash("unban", "Unbans people.").setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.BAN_MEMBERS)).addOption(OptionType.USER, "banned", "The user to unban.", true).setGuildOnly(true),
@@ -93,6 +96,16 @@ public class Bot extends ListenerAdapter{
     @Override
     public void onGuildJoin(GuildJoinEvent event){
         reloadFiles(event.getGuild()); // creates new data files, if necessary
+    }
+    @Override
+    public void onMessageReceived(MessageReceivedEvent event) throws NullPointerException{
+        Member member = event.getMember();
+        if(member == null){
+            return;
+        }
+        if(!(member.getRoles().contains(jda.getRoleById(1102215196459679807L))) && (member.getTimeJoined().plusHours(100)).isBefore(OffsetDateTime.now())){
+            event.getGuild().addRoleToMember(member, jda.getRoleById(1102215196459679807L)).queue();
+        }
     }
     @Override
     public void onSlashCommandInteraction(SlashCommandInteractionEvent event){ // mega-func for all slash commands, to be split later
@@ -679,7 +692,7 @@ public class Bot extends ListenerAdapter{
     public static void reloadFiles(Guild guild){
         reloadFile(guild, "channels", 5);
         // 0 - main chat, 1 - announcement chat, 2 - staff chat, 3 - logging chat, 4 - rules chat
-        reloadFile(guild, "banSettings", 3);
+        reloadFile(guild, "banSettings", 4);
         // 0 - number of hours, 1 - announcement in main chat, 2 - DM to banned user
         reloadFile(guild, "banList", 0);
         reloadFile(guild, "appeals", 0);

@@ -127,7 +127,8 @@ public class Bot extends ListenerAdapter{
                     }
                     int feet = (int) ((int)(centimetres)/30.48);
                     double inches = (centimetres-feet*30.48)/2.54;
-                    String output = String.format(Locale.US, "``%.2f m`` == ``%.1f cm`` == ``%d'%.2f``", centimetres/100, centimetres, feet, inches); // locale US sets the display to dots instead of commas (5'5.5 instead of 5'5,5)
+                    String output = String.format(Locale.US, "``%.2f m`` == ``%.1f cm`` == ``%d'%.2f``", centimetres/100, centimetres, feet, inches);
+                    // locale US sets the display to dots instead of commas (5'5.5 instead of 5'5,5)
                     event.reply(output).queue();
                 }else{
                     event.reply("Invalid format!").queue();

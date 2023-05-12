@@ -1,4 +1,5 @@
-// to be split into multiple files
+// todo: split into multiple files
+// todo: add the file to a proper package
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.JDABuilder;
 import net.dv8tion.jda.api.Permission;
@@ -54,7 +55,7 @@ public class Bot extends ListenerAdapter{
     public static void main(String[] args){
         logger = LoggerFactory.getLogger(Bot.class); // this entire block is logger and logfile creation
         try{
-            File file = new File("data/logs/"+LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd'_'HHmmss"))+".log");
+            File file = new File(String.format("data/logs/%s.log", LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd'_'HHmmss"))));
             file.createNewFile();
             PrintStream ps = new PrintStream(new FileOutputStream(file));
             System.setOut(ps);
@@ -108,8 +109,8 @@ public class Bot extends ListenerAdapter{
             event.getGuild().addRoleToMember(member, role).queue();
         }
     }
-    @Override
-    public void onSlashCommandInteraction(SlashCommandInteractionEvent event){ // mega-func for all slash commands, to be split later
+    @Override // todo: split this method into smaller parts
+    public void onSlashCommandInteraction(SlashCommandInteractionEvent event){
         event.deferReply(); // universal deferreply for all commands
         switch(event.getName()){
             case "height" -> {
@@ -133,6 +134,7 @@ public class Bot extends ListenerAdapter{
                 }else{
                     event.reply("Invalid format!").queue();
                 }
+                logger.info(String.format("User %s used HEIGHT in server %s.", event.getMember().getId(), event.getGuild().getName()));
             }
             case "set" -> { // for server admins to set channels for specific output
                 if(!event.getMember().hasPermission(Permission.MANAGE_CHANNEL)){
@@ -317,7 +319,7 @@ public class Bot extends ListenerAdapter{
                     insufficientPermissionsStandardResponseSlashCommand(event);
                 }
                 event.deferReply();
-                final String NAME = "data/banSettings/" + event.getGuild().getId() + ".csv";
+                final String NAME = String.format("data/banSettings/%s.csv", event.getGuild().getId());
                 int duration = Objects.requireNonNull(event.getOption("days")).getAsInt();
                 if(Math.abs(duration - 183) > 183){
                     event.reply("Erroneous duration - " + duration + " is not a valid duration. Input a positive number below 367.").setEphemeral(true).queue();
@@ -332,7 +334,7 @@ public class Bot extends ListenerAdapter{
                     writer.println(String.join(",", settings));
                     writer.close();
                 }catch(Exception ignored){}
-                logger.info(String.format("User %s changed ban appeal time to %s in server %s. ", event.getMember().getId(), duration + "", event.getGuild().getName()));
+                logger.info(String.format("User %s changed ban appeal time to %s in server %s.", event.getMember().getId(), duration + "", event.getGuild().getName()));
                 event.reply("The change has been successfully applied.").queue();
             }
             case "reload" -> {
@@ -340,7 +342,7 @@ public class Bot extends ListenerAdapter{
                     insufficientPermissionsStandardResponseSlashCommand(event);
                 }
                 reloadFiles(event.getGuild());
-                logger.info(String.format("User %s reloaded data files in server %s. ", event.getMember().getId(), event.getGuild().getName()));
+                logger.info(String.format("User %s reloaded data files in server %s.", event.getMember().getId(), event.getGuild().getName()));
                 event.reply("Successfully reloaded!").queue();
             }
             case "banmessageset" -> {
@@ -660,7 +662,7 @@ public class Bot extends ListenerAdapter{
                                         });
                                     },
                                     (failure) -> {
-                                        // to be done - deleting unnecessary banlist entries here
+                                        // todo: deleting unnecessary banlist entries here
                                     }
                                 );
                             });

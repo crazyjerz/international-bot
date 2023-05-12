@@ -72,15 +72,14 @@ public class Bot extends ListenerAdapter{
     }
     public static int untilNextTimeOfDay(int seconds){
         LocalDateTime time = LocalDateTime.now();
-        LocalDateTime newtime = time.plusDays(boolToInt(seconds < time.get(SECOND_OF_DAY))).plusSeconds(seconds-time.get(SECOND_OF_DAY));
-        return (int) ((int) ((int) newtime.toEpochSecond(ZoneOffset.ofHours(1)))-curtime());
+        LocalDateTime newtime = time.plusDays(boolToInt(seconds < time.get(SECOND_OF_DAY))).plusSeconds(seconds - time.get(SECOND_OF_DAY));
+        return (int) ((int) ((int) newtime.toEpochSecond(ZoneOffset.ofHours(1))) - curtime());
     }
     public static void addCommands(){ // func for registering commands, self-explanatory
         jda.updateCommands().addCommands(
-                Commands.slash("test", "test"),
                 Commands.slash("set", "Set specific channel types, for more information provide \"info\" as argument.").setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.MANAGE_CHANNEL)).addOption(OptionType.STRING, "type", "Type of channel to set.", true, true).addOption(OptionType.CHANNEL, "channel", "The channel to set.", true).setGuildOnly(true),
                 Commands.slash("ban", "Bans people. Automatic appeal in a set number of days.").setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.BAN_MEMBERS)).addOption(OptionType.USER, "banned", "The user to ban.", true).addOption(OptionType.STRING, "reason", "Ban reason.", false).addOption(OptionType.INTEGER, "deletiontime", "The duration, for which the banned user's messages are to be deleted, in hours. 168 or less.", false).setGuildOnly(true),
-                Commands.slash("setverifytime", "Sets the number of hours to get verified.").setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.MESSAGE_MANAGE)).addOption(OptionType.INTEGER, "hours", "Number of hours. Set to zero to disable.", true, true),
+                Commands.slash("setverifyrole", "Set a role to be given for a specific time of server use.").setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.MESSAGE_MANAGE)).addOption(OptionType.INTEGER, "hours", "Number of hours. Set to zero to disable.", true).addOption(OptionType.ROLE, "role", "The role.", true),
                 Commands.slash("timeout", "Timeouts (mutes) people.").setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.KICK_MEMBERS)).addOption(OptionType.USER, "user", "The user to kick.", true).addOption(OptionType.STRING, "time", "Duration of the timeout.", true).setGuildOnly(true).addOption(OptionType.STRING, "reason", "Kick reason.", false).setGuildOnly(true),
                 Commands.slash("kick", "Kicks people.").setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.KICK_MEMBERS)).addOption(OptionType.USER, "kicked", "The user to kick.", true).addOption(OptionType.STRING, "reason", "Kick reason.", false).setGuildOnly(true),
                 Commands.slash("unban", "Unbans people.").setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.BAN_MEMBERS)).addOption(OptionType.USER, "banned", "The user to unban.", true).setGuildOnly(true),
@@ -88,6 +87,7 @@ public class Bot extends ListenerAdapter{
                 Commands.slash("banmessageset", "Set whether the bot should announce bans in main chat (arg 1) or in the banned user's DMs (arg 2).").setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.BAN_MEMBERS)).addOption(OptionType.BOOLEAN, "main", "Announcing bans in main chat.", false).addOption(OptionType.BOOLEAN, "dm", "Announcing bans in DMs.", false).setGuildOnly(true),
                 Commands.slash("reload", "Reload file creation.").setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.MANAGE_SERVER, Permission.MANAGE_CHANNEL)).setGuildOnly(true),
                 Commands.slash("tr", "Translate.").addOption(OptionType.STRING, "text", "What to translate?", true).addOption(OptionType.STRING, "to", "To what language? Default is English", false).addOption(OptionType.STRING, "from", "From what language?", false).setGuildOnly(false),
+                Commands.slash("height", "Convert height from metric to American and back.").addOption(OptionType.STRING, "height", "Height. Give in m, cm or [ft]'[in].", false).setGuildOnly(false),
                 Commands.slash("roll", "Roll.").addOption(OptionType.STRING, "dice", "What dice to roll? Format xdy+zdt. Default: 1d6.", false).setGuildOnly(false),
                 Commands.slash("random", "Random Wikipedia article in any language.").addOption(OptionType.STRING, "language", "Default: English, provide a valid Wikipedia language code (e.g. German - de)", false).setGuildOnly(false),
                 Commands.slash("data", "Information about the bot.").setGuildOnly(false)
@@ -103,16 +103,36 @@ public class Bot extends ListenerAdapter{
         if(member == null){
             return;
         }
-        if(!(member.getRoles().contains(jda.getRoleById(1102215196459679807L))) && (member.getTimeJoined().plusHours(100)).isBefore(OffsetDateTime.now())){
-            event.getGuild().addRoleToMember(member, jda.getRoleById(1102215196459679807L)).queue();
+        Role role = jda.getRoleById(getSpecialSetting(4, event.getGuild()));
+        if(!(member.getRoles().contains(role)) && (member.getTimeJoined().plusSeconds(Integer.parseInt(getSpecialSetting(3, event.getGuild())))).isBefore(OffsetDateTime.now())){
+            event.getGuild().addRoleToMember(member, role).queue();
         }
     }
     @Override
     public void onSlashCommandInteraction(SlashCommandInteractionEvent event){ // mega-func for all slash commands, to be split later
         event.deferReply(); // universal deferreply for all commands
         switch(event.getName()){
-            case "test" -> // to be deleted
-                    event.reply("Test.").setEphemeral(false).queue();
+            case "height" -> {
+                String rawInput = event.getOption("height").getAsString();
+                if(rawInput.matches("[0-9]+'[0-9]+.?[0-9]*")){
+                    String[] values = rawInput.split("'");
+                    double centimetres = (Double.parseDouble(values[0])*12+parseCommaDouble(values[1]))*2.54;
+                    event.reply(String.format(Locale.US, "``%s`` == ``%.2f cm``", rawInput, centimetres)).queue();
+                }else if(rawInput.matches("[0-9]+([.,][0-9]+)? ?c?m")){ // double-check for both m and cm
+                    double centimetres;
+                    if(rawInput.contains("cm")){
+                        centimetres = parseCommaDouble((rawInput.substring(0, rawInput.length()-2)).trim());
+                    }else{
+                        centimetres = parseCommaDouble((rawInput.substring(0, rawInput.length()-1)).trim())*100;
+                    }
+                    int feet = (int) ((int)(centimetres)/30.48);
+                    double inches = (centimetres-feet*30.48)/2.54;
+                    String output = String.format(Locale.US, "``%.2f m`` == ``%.1f cm`` == ``%d'%.2f``", centimetres/100, centimetres, feet, inches); // locale US sets the display to dots instead of commas (5'5.5 instead of 5'5,5)
+                    event.reply(output).queue();
+                }else{
+                    event.reply("Invalid format!").queue();
+                }
+            }
             case "set" -> { // for server admins to set channels for specific output
                 if(!event.getMember().hasPermission(Permission.MANAGE_CHANNEL)){
                     insufficientPermissionsStandardResponseSlashCommand(event);
@@ -150,6 +170,28 @@ public class Bot extends ListenerAdapter{
                     event.reply("An unexpected error has occurred. Contact the developer.").setEphemeral(true).queue();
                 }
             }
+            case "setverifyrole" -> {
+                if(!event.getMember().hasPermission(Permission.MESSAGE_MANAGE)){
+                    insufficientPermissionsStandardResponseSlashCommand(event);
+                    break;
+                }
+                final String NAME = "data/banSettings/" + event.getGuild().getId() + ".csv";
+                int duration = Objects.requireNonNull(event.getOption("hours")).getAsInt();
+                if(duration < 0){
+                    event.reply("Erroneous duration - " + duration + " is not a valid duration. Input a non-negative number.").setEphemeral(true).queue();
+                    break;
+                }
+                try{
+                    Scanner scanner = new Scanner(Paths.get(NAME));
+                    String[] settings = scanner.nextLine().split(",");
+                    settings[3] = (duration*3600) + "";
+                    settings[4] = event.getOption("role").getAsRole().getId();
+                    PrintWriter writer = new PrintWriter(NAME);
+                    writer.println(String.join(",", settings));
+                    writer.close();
+                }catch(Exception ignored){}
+                event.reply("TEST").queue();
+            }
             case "kick" -> {
                 if(!event.getMember().hasPermission(Permission.KICK_MEMBERS)){
                     insufficientPermissionsStandardResponseSlashCommand(event);
@@ -169,7 +211,7 @@ public class Bot extends ListenerAdapter{
                     e.printStackTrace();
                     event.reply("An unexpected error has occurred.").setEphemeral(true).queue();
                 }
-                if(getSpecialSetting(2, event.getGuild()) == 1){
+                if(getSpecialSetting(2, event.getGuild()).equals("1")){
                     privateMessage(kicked, "You have been kicked from " + event.getGuild().getName() + " by <@" + event.getMember().getId() + (kickReason.equals("") ? ">. No reason was provided" : (">. Reason:" + kickReason)));
                 }
             }
@@ -188,7 +230,7 @@ public class Bot extends ListenerAdapter{
                 String reason = (event.getOption("reason") != null ? event.getOption("reason").getAsString() : "");
                 try{
                     event.getGuild().timeoutFor(user, seconds, TimeUnit.SECONDS).queue();
-                    if(getSpecialSetting(2, event.getGuild()) == 1){
+                    if(getSpecialSetting(2, event.getGuild()).equals("1")){
                         privateMessage(user, "You have been banned from " + event.getGuild().getName() + " by <@" + event.getMember().getId() + (reason.equals("") ? ">. No reason was provided" : (">. Reason:" + reason)));
                     }
                     logger.info(String.format("User %s was timeouted by %s in server %s for %d seconds. " + (reason.equals("") ? "No reason provided." : "Reason: %s"), user.getId(), event.getMember().getId(), event.getGuild().getName(), seconds, reason));
@@ -220,10 +262,10 @@ public class Bot extends ListenerAdapter{
                     PrintWriter writer = new PrintWriter(new FileWriter(Paths.get("data/banList/" + event.getGuild().getId() + ".csv").toFile(), true));
                     writer.println(loggedInfo);
                     writer.close();
-                    if(getSpecialSetting(1, event.getGuild()) == 1){
+                    if(getSpecialSetting(1, event.getGuild()).equals("1")){
                         specialMessage(0, event.getGuild(), "The user <@" + user.getId() + "> has been banned from " + event.getGuild().getName() + ".");
                     }
-                    if(getSpecialSetting(2, event.getGuild()) == 1){
+                    if(getSpecialSetting(2, event.getGuild()).equals("1")){
                         privateMessage(user, "You have been banned from " + event.getGuild().getName() + " by <@" + event.getMember().getId() + (reason.equals("") ? ">. No reason was provided" : (">. Reason:" + reason)));
                     }
                     event.getGuild().ban(user, deletionLength, TimeUnit.HOURS).reason(reason).queue();
@@ -286,10 +328,9 @@ public class Bot extends ListenerAdapter{
                     duration *= 86400;
                     settings[0] = duration + "";
                     PrintWriter writer = new PrintWriter(NAME);
-                    writer.println(settings[0] + "," + settings[1] + "," + settings[2]);
+                    writer.println(String.join(",", settings));
                     writer.close();
-                }catch(Exception ignored){
-                }
+                }catch(Exception ignored){}
                 logger.info(String.format("User %s changed ban appeal time to %s in server %s. ", event.getMember().getId(), duration + "", event.getGuild().getName()));
                 event.reply("The change has been successfully applied.").queue();
             }
@@ -310,15 +351,13 @@ public class Bot extends ListenerAdapter{
                 try{
                     final String NAME2 = "data/banSettings/" + event.getGuild().getId() + ".csv";
                     Scanner scan = new Scanner(Paths.get(NAME2));
-                    String setting = scan.nextLine();
-                    int val1 = boolToInt(event.getOption("main").getAsBoolean());
-                    int val2 = boolToInt(event.getOption("dm").getAsBoolean());
-                    setting = setting.split(",")[0] + "," + val1 + "," + val2;
+                    String[] setts = scan.nextLine().split(",");
+                    setts[1] = String.valueOf(boolToInt(event.getOption("main").getAsBoolean()));
+                    setts[2] = String.valueOf(boolToInt(event.getOption("dm").getAsBoolean()));
                     PrintWriter writer = new PrintWriter(NAME2);
-                    writer.println(setting);
+                    writer.println(String.join(",", setts));
                     writer.close();
-                }catch(Exception ignored){
-                }
+                }catch(Exception ignored){}
                 event.reply("The change has been successfully applied.").queue();
                 logger.info(String.format("User %s changed ban message properties in server %s.", event.getMember().getId(), event.getGuild().getName()));
             }
@@ -336,7 +375,6 @@ public class Bot extends ListenerAdapter{
                     event.reply("Too long!").queue();
                     break;
                 }
-                //System.out.println(text);
                 Map<String, String> langMap = Map.ofEntries(Map.entry("bulgarian", "BG"), Map.entry("czech", "CS"), Map.entry("danish", "DA"), Map.entry("german", "DE"), Map.entry("greek", "EL"), Map.entry("english", "EN"), Map.entry("spanish", "ES"), Map.entry("estonian", "ET"), Map.entry("finnish", "FI"), Map.entry("french", "FR"), Map.entry("hungarian", "HU"), Map.entry("indonesian", "ID"), Map.entry("italian", "IT"), Map.entry("japanese", "JA"), Map.entry("korean", "KO"), Map.entry("lithuanian", "LT"), Map.entry("latvian", "LV"), Map.entry("norwegian", "NB"), Map.entry("dutch", "NL"), Map.entry("polish", "PL"), Map.entry("portuguese", "PT"), Map.entry("romanian", "RO"), Map.entry("russian", "RU"), Map.entry("slovak", "SK"), Map.entry("slovenian", "SL"), Map.entry("swedish", "SV"), Map.entry("turkish", "TR"), Map.entry("ukrainian", "UK"));
                 if(langMap.containsKey(to.toLowerCase())){
                     to = langMap.get(to.toLowerCase());
@@ -357,7 +395,6 @@ public class Bot extends ListenerAdapter{
                     connection.connect();
                     BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()));
                     String[] output = reader.readLine().split("\"");
-                    //System.out.println(Arrays.toString(output));
                     String translatedContent = output[9];
                     logger.info(String.format("User %s translated %d chars of text in server %s. Request time: %d ms.", event.getMember().getId(), text.length(), event.getGuild().getName(), System.currentTimeMillis() - time));
                     event.reply(translatedContent).queue();
@@ -455,7 +492,7 @@ public class Bot extends ListenerAdapter{
     }
     public static void unban(User user, Guild guild){
         guild.unban(user).queue();
-        if(getSpecialSetting(2, guild) == 1){
+        if(getSpecialSetting(2, guild).equals("1")){
             privateMessage(user, ("You have been unbanned from " + guild.getName() + ". Welcome back!"));
         }
     }
@@ -474,10 +511,7 @@ public class Bot extends ListenerAdapter{
                 int n = rand.nextInt((array[0].length + array[1].length) - 1);
                 isPlaying = n < array[0].length;
                 content = (!isPlaying ? array[1][n - array[0].length] : array[0][n]);
-                //System.out.println(content);
             }
-            //System.out.println(n);
-            //System.out.println((n >= array[0].length ? array[1][n - array[0].length] : array[0][n]));
             Activity activity;
             if(isPlaying){
                 activity = Activity.playing(content);
@@ -507,17 +541,14 @@ public class Bot extends ListenerAdapter{
                     String[] content = text.split(",");
                     if(Integer.parseInt(content[1]) <= curtime()){
                         appealed.add(text);
-                        //System.out.println(text);
-                        //System.out.println(name.substring(0, name.length()-4));
                         getSpecialChannel(2, guild).getHistory().retrievePast(100).queue(n -> {
                             for(Message j : n){
                                 if(j.getId().equals(content[0])){
                                     List<MessageReaction> reactions = j.getReactions();
-                                    //System.out.println(reactions.size());
                                     int[] votes = {0, 0};
                                     for(MessageReaction k : reactions){
                                         String emoji = k.getEmoji().getFormatted();
-                                        //System.out.println(emoji); // below unicode codepoint is a thumbs-up emoji
+                                        // below unicode codepoint is a thumbs-up emoji
                                         if(emoji.equals("\uD83D\uDC4D")){
                                             votes[0] = k.getCount();
                                         }else if(emoji.equals("\uD83D\uDC4E")){
@@ -611,7 +642,6 @@ public class Bot extends ListenerAdapter{
                                                         tobeprinted.append(text5).append("\n");
                                                     }
                                                 }
-                                                //System.out.println(tobeprinted);
                                                 PrintWriter w = new PrintWriter(new FileWriter(Paths.get("data/banList/"+name).toFile(), false));
                                                 w.println(tobeprinted);
                                                 w.close();
@@ -646,11 +676,11 @@ public class Bot extends ListenerAdapter{
             return null;
         }
     }
-    public static int getSpecialSetting(int index, Guild guild){
+    public static String getSpecialSetting(int index, Guild guild){
         try{
-            return Integer.parseInt(new Scanner(Paths.get("data/banSettings/" + guild.getId() + ".csv")).nextLine().split(",")[index]);
+            return new Scanner(Paths.get("data/banSettings/" + guild.getId() + ".csv")).nextLine().split(",")[index];
         }catch(Exception e){
-            return -1;
+            return "-1";
         }
     }
     public static int boolToInt(boolean bool){
@@ -674,6 +704,12 @@ public class Bot extends ListenerAdapter{
             return -1;
         }
     }
+    public static double parseCommaDouble(String string){ // changes numbers like "120,1" into "120.1"
+        if(!string.trim().matches("[0-9]+([.,][0-9]+)?")){
+            throw new IllegalArgumentException();
+        }
+        return Double.parseDouble(string.trim().replace(',', '.'));
+    }
     public static void reloadFile(Guild guild, String dir, int zeroes){
         try{
             String name = "data/"+dir+"/"+guild.getId()+".csv";
@@ -692,7 +728,7 @@ public class Bot extends ListenerAdapter{
     public static void reloadFiles(Guild guild){
         reloadFile(guild, "channels", 5);
         // 0 - main chat, 1 - announcement chat, 2 - staff chat, 3 - logging chat, 4 - rules chat
-        reloadFile(guild, "banSettings", 4);
+        reloadFile(guild, "banSettings", 5);
         // 0 - number of hours, 1 - announcement in main chat, 2 - DM to banned user
         reloadFile(guild, "banList", 0);
         reloadFile(guild, "appeals", 0);

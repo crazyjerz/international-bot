@@ -467,7 +467,15 @@ public class Bot extends ListenerAdapter{
                 }
             }
             case "data" ->
-                event.reply(String.format("**International Bot**\n **Current version:** Alpha 0.4.5a\n **Created for:** International Hangout\n **Owner:** crazyjerz#0849\n **Runs on:**\n   Eclipse Adoptium Java 17 (https://adoptium.net/)\n  JDA 5.0.0 (https://github.com/DV8FromTheWorld/JDA)\n **Running since:** 14 March 2023")).setEphemeral(true).queue();
+                event.reply(
+                        "**International Bot**\n " +
+                        "**Current version:** Alpha 0.4.6c\n " +
+                        "**Created for:** International Hangout\n " +
+                        "**Owner:** crazyjerz#0849\n **Runs on:**\n" +
+                        "   Eclipse Adoptium Java 17 (https://adoptium.net/)\n  " +
+                        "JDA 5.0.0 (https://github.com/DV8FromTheWorld/JDA)\n " +
+                        "**Running since:** 14 March 2023"
+                ).setEphemeral(true).queue();
         }
     }
     @Override
